@@ -16,7 +16,7 @@ from project_view import ProjectView
 from new_project import NewProjectWizard
 from theme import DarkTheme
 from PyQt6.Qsci import QsciAbstractAPIs, QsciScintilla, QsciDocument,QsciLexerJSON
-from autocompleter import AutoCompleter
+from auto_complete.autocompleter import AutoCompleter
 from Rule_Engine import RuleEngine
 
 
