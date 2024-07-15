@@ -1,11 +1,10 @@
-import sys
-import os
+import sys, logging
+import os,json
+
 import shutil
-import json
-from PyQt6.QtWidgets import (QApplication, QWizard, QWizardPage, QWidget, QVBoxLayout,
-                             QPushButton, QLabel, QLineEdit, QFileDialog,
-                             QMessageBox, QComboBox, QHBoxLayout)
-from PyQt6.QtCore import pyqtSignal,Qt
+from PyQt6.QtWidgets import (QApplication, QWizard, QWizardPage, QVBoxLayout, QPushButton, QLabel, QLineEdit,
+                             QFileDialog, QMessageBox,QWidget, QComboBox, QHBoxLayout)
+from PyQt6.QtCore import pyqtSignal, Qt, QEvent,QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from project_view import ProjectView
 
@@ -18,11 +17,9 @@ class NewProjectWizard(QWizard):
         self.setWindowTitle('New Project Wizard')
         self.setGeometry(100, 100, 800, 600)
 
-        
         # Create the mobile view widget
         self.mobile_view = QWebEngineView()
         self.mobile_view.setFixedSize(300, 400)
-        
 
         # Create pages
         self.create_intro_page()
@@ -37,8 +34,7 @@ class NewProjectWizard(QWizard):
         # Hide the default Next and Back buttons
         self.setButtonLayout([QWizard.WizardButton.BackButton, QWizard.WizardButton.CancelButton])
 
-        # Connect the cancel button to a custom slot
-        self.button(QWizard.WizardButton.CancelButton).clicked.connect(self.handle_cancel)
+ 
 
         self.setStyleSheet("""
             QWizard {
@@ -62,17 +58,15 @@ class NewProjectWizard(QWizard):
         self.project_view = ProjectView()
 
     def create_intro_page(self):
-        try:
-            self.intro_page = QWizardPage()
-            self.intro_page.setTitle("Setup New Project")
-            self.intro_page.setSubTitle("Choose whether to copy a sample project or create a new one from scratch.")
+        self.intro_page = QWizardPage()
+        self.intro_page.setTitle("Setup New Project")
+        self.intro_page.setSubTitle("Choose whether to copy a sample project or create a new one from scratch.")
 
-            layout = QVBoxLayout()
+        layout = QVBoxLayout()
+        button_layout = QHBoxLayout()
 
-            button_layout = QHBoxLayout()
-
-            self.copy_sample_button = QPushButton("Copy a Sample Project")
-            self.copy_sample_button.setStyleSheet("""
+        self.copy_sample_button = QPushButton("Copy a Sample Project")
+        self.copy_sample_button.setStyleSheet("""
             QPushButton {
                 background-color: #6200EE;
                 color: white;
@@ -95,8 +89,8 @@ class NewProjectWizard(QWizard):
                 background-color: #03DAC6;
                 transform: scale(1.02);
             }""")
-            self.create_new_button = QPushButton("Create New Project")
-            self.create_new_button.setStyleSheet("""
+        self.create_new_button = QPushButton("Create New Project")
+        self.create_new_button.setStyleSheet("""
             QPushButton {
                 background-color: #6200EE;
                 color: white;
@@ -118,323 +112,310 @@ class NewProjectWizard(QWizard):
             QPushButton:pressed {
                 background-color: #03DAC6;
                 transform: scale(1.02);
-                """)
-            self.copy_sample_button.setToolTip("Copy a predefined sample project to a new location.")
-            self.create_new_button.setToolTip("Create a new project with a blank structure.")
-            
+            }""")
+        self.copy_sample_button.setToolTip("Copy a predefined sample project to a new location.")
+        self.create_new_button.setToolTip("Create a new project with a blank structure.")
 
-            button_layout.addWidget(self.copy_sample_button)
-            button_layout.addWidget(self.create_new_button)
+        button_layout.addWidget(self.copy_sample_button)
+        button_layout.addWidget(self.create_new_button)
 
-             # Add stretch to push buttons to the top 
-            layout.addLayout(button_layout)
-            self.intro_page.setLayout(layout)
-            
-            
-            self.copy_sample_button.clicked.connect(self.goto_copy_sample_page)
-            self.create_new_button.clicked.connect(self.goto_new_project_page)
-        except Exception as e:
-            print(f"An error occurred while setting up the intro page: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while setting up the intro page: {e}")
+        # Add stretch to push buttons to the top 
+        layout.addLayout(button_layout)
+        self.intro_page.setLayout(layout)
+
+        self.copy_sample_button.clicked.connect(self.goto_copy_sample_page)
+        self.create_new_button.clicked.connect(self.goto_new_project_page)
 
     def create_copy_sample_page(self):
-        try:
-            self.copy_sample_page = QWizardPage()
-            self.copy_sample_page.setTitle("Copy Sample Project")
-            self.copy_sample_page.setSubTitle("Provide details for copying a sample project.")
+        self.copy_sample_page = QWizardPage()
+        self.copy_sample_page.setTitle("Copy Sample Project")
+        self.copy_sample_page.setSubTitle("Provide details for copying a sample project.")
 
-            layout = QVBoxLayout()
+        layout = QVBoxLayout()
 
-            self.sample_project_label = QLabel("Select a sample project:")
-            self.sample_project_combo = QComboBox()
-            self.sample_project_combo.addItems(["-- Select Sample Project --"] + self.get_sample_projects())
+        self.sample_project_label = QLabel("Select a sample project:")
+        self.sample_project_combo = QComboBox()
+        self.sample_project_combo.addItem("-- Select Sample Project --")
+        self.sample_project_combo.addItems(self.get_sample_projects())
+        self.sample_project_combo.setCurrentIndex(0) 
 
-            self.copy_project_name_label = QLabel("Enter Project Name:")
-            self.copy_project_name_input = QLineEdit()
-            self.copy_project_button = QPushButton("Copy Project")
+        self.copy_project_name_label = QLabel("Enter Project Name:")
+        self.copy_project_name_input = QLineEdit()
 
-            self.copy_project_name_input.setToolTip("Enter the name of the new project.")
-            self.copy_project_button.setToolTip("Click to copy the sample project.")
+        self.ui_file_label = QLabel("See UI files in project:")
+        self.ui_file_combo = QComboBox()
+        self.ui_file_combo.addItem("-- Select UI File --")
 
-            # Add widgets to the layout with stretches for better spacing
-            layout.addWidget(self.sample_project_label)
-            layout.addWidget(self.sample_project_combo)
-            layout.addStretch()  # Add stretch to create space between elements
-            layout.addWidget(self.copy_project_name_label)
-            layout.addWidget(self.copy_project_name_input)
-            layout.addStretch()  # Add stretch to create space between elements
-            layout.addWidget(self.copy_project_button)
+        self.copy_project_button = QPushButton("Copy Project")
 
-            self.copy_project_button.setEnabled(False)
+        layout.addWidget(self.sample_project_label)
+        layout.addWidget(self.sample_project_combo)
+        layout.addWidget(self.ui_file_label)
+        layout.addWidget(self.ui_file_combo)
+        layout.addWidget(self.copy_project_name_label)
+        layout.addWidget(self.copy_project_name_input)
+        layout.addWidget(self.copy_project_button)
 
-            # Stylesheet for QPushButton
-            self.copy_project_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #6200EE;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    text-align: center;
-                    text-decoration: none;
-                    display: inline-block;
-                    font-size: 16px;
-                    margin: 4px 2px;
-                    transition-duration: 0.4s;
-                    cursor: pointer;
-                }
-                QPushButton:hover {
-                    background-color: white;
-                    color: black;
-                    border: 2px solid #6200EE;
-                }
-            """)
-            
-            # Stylesheet for QLineEdit
-            self.copy_project_name_input.setStyleSheet("""
-                QLineEdit {
-                    padding: 5px;
-                    border: 2px solid #6200EE;
-                    border-radius: 4px;
-                }
-            """)
+        self.copy_project_button.setEnabled(False)
 
-            # Stylesheet for QComboBox
-            self.sample_project_combo.setStyleSheet("""
-                QComboBox {
-                    border: 2px solid #6200EE;
-                    border-radius: 4px;
-                    padding: 5px;
-                    background-color: #f0f0f0;
-                    min-width: 150px;
-                }
-                QComboBox::drop-down {
-                    subcontrol-origin: padding;
-                    subcontrol-position: top right;
-                    width: 25px;
-                    border-left-width: 1px;
-                    border-left-color: #6200EE;
-                    border-left-style: solid;
-                    border-top-right-radius: 4px;
-                    border-bottom-right-radius: 4px;
-                    background-color: #f0f0f0;
-                }
-                QComboBox::down-arrow {
-                    image: ""  # You need to have an image named down_arrow.png
-                    width: 14px;
-                    height: 14px;
-                }
-                QComboBox QAbstractItemView {
-                    border: 2px solid #6200EE;
-                    selection-background-color: #d1d1d1;
-                }
-            """)
+        # Stylesheet for QPushButton
+        self.copy_project_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6200EE;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+                margin: 4px 2px;
+                transition-duration: 0.4s;
+                cursor: pointer;
+            }
+            QPushButton:hover {
+                background-color: white;
+                color: black;
+                border: 2px solid #6200EE;
+            }
+        """)
 
-            # Create a QWidget for mobile view with a solid black border
-            self.mobile_view_widget = QWidget()
-            self.mobile_view_widget.setStyleSheet("""
-                QWidget {
-                    border-radius:4px;
-                    border: 2px solid black;
-                }
-            """)
+        # Stylesheet for QLineEdit and QComboBox
+        self.copy_project_name_input.setStyleSheet("""
+            QLineEdit {
+                padding: 5px;
+                border: 2px solid #6200EE;
+                border-radius: 4px;
+            }
+        """)
+        self.sample_project_combo.setStyleSheet("""
+            QComboBox {
+                border: 2px solid #6200EE;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #f0f0f0;
+                min-width: 150px;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 25px;
+                border-left-width: 1px;
+                border-left-color: #6200EE;
+                border-left-style: solid;
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+                background-color: #f0f0f0;
+            }
+            QComboBox QAbstractItemView {
+                border: 2px solid #6200EE;
+                selection-background-color: #d1d1d1;
+            }
+        """)
 
-            mobile_layout = QVBoxLayout()
-            mobile_layout.addWidget(self.mobile_view)
-            self.mobile_view_widget.setLayout(mobile_layout)
+        # Create a QWidget for mobile view with a solid black border
+        self.mobile_view_widget = QWidget()
+        self.mobile_view_widget.setStyleSheet("""
+            QWidget {
+                border-radius:4px;
+                border: 2px solid black;
+            }
+        """)
 
-            # Horizontal layout to include mobile view
-            horizontal_layout = QHBoxLayout()
-            horizontal_layout.addLayout(layout)
-            horizontal_layout.addWidget(self.mobile_view_widget)
+        mobile_layout = QVBoxLayout()
+        mobile_layout.addWidget(self.mobile_view)
+        self.mobile_view_widget.setLayout(mobile_layout)
 
-            self.copy_sample_page.setLayout(horizontal_layout)
+        # Horizontal layout to include mobile view
+        horizontal_layout = QHBoxLayout()
+        horizontal_layout.addLayout(layout)
+        horizontal_layout.addWidget(self.mobile_view_widget)
 
-            self.sample_project_combo.currentIndexChanged.connect(self.update_mobile_view)
-            self.copy_project_name_input.textChanged.connect(self.check_copy_form_complete)
-            self.copy_project_button.clicked.connect(self.copy_sample_project)
-        except Exception as e:
-            print(f"An error occurred while setting up the copy sample project page: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while setting up the copy sample project page: {e}")
+        self.copy_sample_page.setLayout(horizontal_layout)
+
+        self.sample_project_combo.currentIndexChanged.connect(self.update_ui_file_combo)
+        self.ui_file_combo.currentIndexChanged.connect(self.update_mobile_view_with_ui_file)
+        self.copy_project_name_input.textChanged.connect(self.check_copy_form_complete)
+        self.copy_project_button.clicked.connect(self.copy_sample_project)
 
     def create_new_project_page(self):
-        try:
-            self.new_project_page = QWizardPage()
-            self.new_project_page.setTitle("Create New Project")
-            self.new_project_page.setSubTitle("Provide details for your new project.")
+        self.new_project_page = QWizardPage()
+        self.new_project_page.setTitle("Create New Project")
+        self.new_project_page.setSubTitle("Provide details for creating a new project.")
 
-            layout = QVBoxLayout()
+        layout = QVBoxLayout()
 
-            self.new_project_name_label = QLabel("Enter Project Name:")
-            self.new_project_name_input = QLineEdit()
-            self.create_project_button = QPushButton("Create Project")
+        self.project_name_label = QLabel("Enter Project Name:")
+        self.project_name_input = QLineEdit()
 
-            self.new_project_name_input.setToolTip("Enter the name of the new project.")
-            self.new_project_name_input.setStyleSheet("""
-                QLineEdit {
-                    padding: 5px;
-                    border: 2px solid #6200EE;
-                    border-radius: 4px;
-                }
-            """)
-            self.create_project_button.setToolTip("Click to create the new project.")
-            self.create_project_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #6200EE;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    text-align: center;
-                    text-decoration: none;
-                    display: inline-block;
-                    font-size: 16px;
-                    margin: 4px 2px;
-                    transition-duration: 0.4s;
-                    cursor: pointer;
-                }
-                QPushButton:hover {
-                    background-color: white;
-                    color: black;
-                    border: 2px solid #6200EE;
-                }
-            """)
 
-            layout.addWidget(self.new_project_name_label)
-            layout.addWidget(self.new_project_name_input)
-            layout.addWidget(self.create_project_button)
+        self.create_project_button = QPushButton("Create Project")
 
-            self.create_project_button.setEnabled(False)
+        layout.addWidget(self.project_name_label)
+        layout.addWidget(self.project_name_input)
+        layout.addWidget(self.create_project_button)
 
-            # Horizontal layout
-            horizontal_layout = QHBoxLayout()
-            horizontal_layout.addLayout(layout)
+        self.create_project_button.setEnabled(False)
 
-            self.new_project_page.setLayout(horizontal_layout)
+        # Stylesheet for QPushButton
+        self.create_project_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6200EE;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+                margin: 4px 2px;
+                transition-duration: 0.4s;
+                cursor: pointer;
+            }
+            QPushButton:hover {
+                background-color: white;
+                color: black;
+                border: 2px solid #6200EE;
+            }
+        """)
 
-            self.create_project_button.clicked.connect(self.create_new_project)
-            self.new_project_name_input.textChanged.connect(self.check_new_form_complete)
-        except Exception as e:
-            print(f"An error occurred while setting up the new project page: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while setting up the new project page: {e}")
+        # Stylesheet for QLineEdit and QComboBox
+        self.project_name_input.setStyleSheet("""
+            QLineEdit {
+                padding: 5px;
+                border: 2px solid #6200EE;
+                border-radius: 4px;
+            }
+        """)
 
-    def get_sample_projects(self):
-        try:
-            # Get the list of sample projects from the project_templates directory
-            template_dir = os.path.join(os.path.dirname(__file__), 'project_templates')
-            if not os.path.exists(template_dir):
-                return []
-            return [name for name in os.listdir(template_dir) if os.path.isdir(os.path.join(template_dir, name))]
-        except Exception as e:
-            print(f"An error occurred while getting sample projects: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while getting sample projects: {e}")
-            return []
+        self.new_project_page.setLayout(layout)
+
+        self.project_name_input.textChanged.connect(self.check_new_form_complete)
+        self.create_project_button.clicked.connect(self.create_new_project)
 
     def goto_copy_sample_page(self):
-        try:
-            self.setCurrentId(1)
-        except Exception as e:
-            print(f"An error occurred while navigating to the copy sample project page: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while navigating to the copy sample project page: {e}")
+        self.setCurrentId(1)
+        self.update_sample_projects()
 
     def goto_new_project_page(self):
-        try:
-            self.setCurrentId(2)
-        except Exception as e:
-            print(f"An error occurred while navigating to the new project page: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while navigating to the new project page: {e}")
+        self.setCurrentId(2)
 
-    def browse_copy_destination(self):
-        try:
-            directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-            if directory:
-                self.copy_destination_path.setText(directory)
-        except Exception as e:
-            print(f"An error occurred while browsing for a destination directory: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while browsing for a destination directory: {e}")
-
-    def check_copy_form_complete(self):
-        if self.copy_project_name_input.text():
-            self.copy_project_button.setEnabled(True)
+    def handle_cancel(self):
+        reply = QMessageBox.question(self, 'Cancel', 'Are you sure you want to cancel?', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.accept()
         else:
+            self.ignore()
+
+    def closeEvent(self, event):
+        reply = QMessageBox.question(self, 'Cancel', 'Are you sure you want to cancel?', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    def get_sample_projects(self):
+        sample_dir = r'D:\RDF_STUDIO\project_templates'
+        if os.path.exists(sample_dir):
+            return [name for name in os.listdir(sample_dir) if os.path.isdir(os.path.join(sample_dir, name))]
+        return []
+
+    def update_sample_projects(self):
+        self.sample_project_combo.clear()  # Clear existing items
+        self.sample_project_combo.addItem("-- Select Sample Project --")
+        self.sample_project_combo.addItems(self.get_sample_projects())
+
+    def update_ui_file_combo(self, index):
+        if index > 0:
+            project_name = self.sample_project_combo.itemText(index)
+            project_path = os.path.join('project_templates', project_name,'RDF_UI')
+            ui_files = [f for f in os.listdir(project_path) if f.endswith('UI.php')]
+
+            self.ui_file_combo.clear()
+            self.ui_file_combo.addItem("-- Select UI File --")
+            self.ui_file_combo.addItems(ui_files)
+
+            self.copy_project_button.setEnabled(True if ui_files else False)
+        else:
+            self.ui_file_combo.clear()
+            self.ui_file_combo.addItem("-- Select UI File --")
             self.copy_project_button.setEnabled(False)
 
-    def browse_new_destination(self):
+    def update_mobile_view_with_ui_file(self):
         try:
-            directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-            if directory:
-                self.new_destination_path.setText(directory)
-        except Exception as e:
-            print(f"An error occurred while browsing for a destination directory: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while browsing for a destination directory: {e}")
+            selected_project = self.sample_project_combo.currentText().strip()
+            selected_ui_file = self.ui_file_combo.currentText().strip()
 
-    def check_new_form_complete(self):
-        if self.new_project_name_input.text():
-            self.create_project_button.setEnabled(True)
-        else:
-            self.create_project_button.setEnabled(False)
+            if selected_project == "-- Select Sample Project --" or selected_ui_file == "-- Select UI File --":
+                self.mobile_view.setHtml("<html><body><p>No content available</p></body></html>")
+                return
 
-    def update_mobile_view(self):
-        try:
-            selected_project = self.sample_project_combo.currentText()
-            if selected_project != "-- Select Sample Project --":
-                template_dir = os.path.join(os.path.dirname(__file__), 'project_templates', selected_project)
-                project_info_path = os.path.join(template_dir, "ProjectInfo.json")
-                if os.path.exists(project_info_path):
-                    with open(project_info_path, 'r') as file:
-                        project_info = json.load(file)
-                        ui_file_name = project_info.get('init', '')
-                        ui_file_path = os.path.join(template_dir, "RDF_UI", ui_file_name)
-                        if os.path.exists(ui_file_path):
-                            with open(ui_file_path, 'r', encoding='utf-8') as ui_file:
-                                html_content = ui_file.read()
-                            self.mobile_view.setHtml(html_content)
-                            return
-                        else:
-                            QMessageBox.warning(self, "Error", f"UI file '{ui_file_path}' not found!")
-                else:
-                    QMessageBox.warning(self, "Error", f"Project info file '{project_info_path}' not found!")
+            # Construct the UI file path
+            project_templates_dir = os.path.join(os.path.dirname(__file__), 'project_templates')
+            ui_file_path = os.path.join(project_templates_dir, selected_project, "RDF_UI", selected_ui_file)
+
+            # Check if the directory exists before attempting to access the file
+            if os.path.exists(os.path.dirname(ui_file_path)):
+                with open(ui_file_path, 'r', encoding='utf-8') as ui_file:
+                    html_content = ui_file.read()
+                self.mobile_view.setHtml(html_content)
             else:
-                print(self, "Error", "Please select a valid project from the list.")
+                self.mobile_view.setHtml("<html><body><p>No content available</p></body></html>")
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while updating the mobile view: {e}")
-        # Default content in case of failure
+            print(f"An error occurred while updating the mobile view: {e}")
+            
+    def reset_wizard(self):
+        self.sample_project_combo.setCurrentId(0)
+        self.copy_project_name_input.clear()
+        self.project_name_input.clear()
         self.mobile_view.setHtml("<html><body><p>No content available</p></body></html>")
+
+
+    def check_copy_form_complete(self):
+        project_name = self.copy_project_name_input.text().strip()
+        is_complete = bool(project_name and self.sample_project_combo.currentIndex() > 0 and self.ui_file_combo.currentIndex() > 0)
+        self.copy_project_button.setEnabled(is_complete)
 
     def copy_sample_project(self):
         try:
             sample_project_name = self.sample_project_combo.currentText()
-            project_name = self.copy_project_name_input.text()
+            new_project_name = self.copy_project_name_input.text().strip()
 
-            # Fixed destination directory in C:\xampp\htdocs
-            destination_dir = r'C:\xampp\htdocs'
-            
-            if sample_project_name == "-- Select Sample Project --" or not project_name:
-                QMessageBox.warning(self, "Incomplete Form", "Please complete all fields.")
+            if not sample_project_name or not new_project_name:
+                QMessageBox.warning(self, "Input Error", "Please select a sample project and enter a project name.")
                 return
 
-            # Construct source and destination paths
-            source_dir = os.path.join(os.path.dirname(__file__), 'project_templates', sample_project_name)
-            dest_dir = os.path.join(destination_dir, project_name)
+            sample_project_dir = os.path.join('project_templates', sample_project_name)
+            new_project_dir = os.path.join('C:\\xampp\\htdocs', new_project_name)
 
-            # Check if destination directory already exists
-            if os.path.exists(dest_dir):
-                QMessageBox.warning(self, "Project Exists", "A project with this name already exists in the selected directory.")
+            if os.path.exists(new_project_dir):
+                QMessageBox.critical(self, "Error", "A project with this name already exists!")
                 return
 
-            # Perform the copy operation
-            shutil.copytree(source_dir, dest_dir)
+            shutil.copytree(sample_project_dir, new_project_dir)
+            self.project_created.emit(new_project_name)
+            QMessageBox.information(self, "Success", "Project copied successfully!")
+            self.accept()
 
-            # Emit signal and show success message
-            QMessageBox.information(self, "Success", "Sample project copied successfully.")
-            self.reset_wizard()
-            self.close()
         except Exception as e:
-            print(f"An error occurred while copying the sample project: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while copying the sample project: {e}")
+            QMessageBox.critical(self, "Error", f"An error occurred while copying the project: {str(e)}")
+
+    def get_ui_templates(self):
+        template_dir = 'ui_templates'
+        if os.path.exists(template_dir):
+            return [name for name in os.listdir(template_dir) if os.path.isfile(os.path.join(template_dir, name))]
+        return []
+
+    def check_new_form_complete(self):
+        project_name = self.project_name_input.text().strip()
+        is_complete = bool(project_name)
+        self.create_project_button.setEnabled(is_complete)
 
     def create_new_project(self):
         try:
             destination_dir = r'C:\xampp\htdocs'
-            project_name = self.new_project_name_input.text()
+            project_name = self.project_name_input.text()
 
             if not destination_dir or not project_name:
                 QMessageBox.warning(self, "Incomplete Form", "Please complete all fields.")
@@ -450,6 +431,11 @@ class NewProjectWizard(QWizard):
 
             # Create initial project structure
             os.makedirs(os.path.join(dest_dir, "RDF_UI"))
+            
+            # Create UI file with project name
+            project_name = os.path.basename(dest_dir)
+            ui_file_name = f"{project_name}UI.php"
+            open(os.path.join(dest_dir, "RDF_UI", ui_file_name), 'w').close()            
             os.makedirs(os.path.join(dest_dir, "RDF_ACTION"))
             os.makedirs(os.path.join(dest_dir, "RDF_BW"))
             os.makedirs(os.path.join(dest_dir, "RDF_BVO"))
@@ -457,7 +443,7 @@ class NewProjectWizard(QWizard):
 
             # Create a default ProjectInfo.json file
             project_info = {
-                "init": ""
+                "init": ui_file_name
             }
 
             with open(os.path.join(dest_dir, "ProjectInfo.json"), 'w') as file:
@@ -465,24 +451,24 @@ class NewProjectWizard(QWizard):
 
             self.project_created.emit(dest_dir)
             QMessageBox.information(self, "Success", "New project created successfully.")
-            self.project_view.populate_tables(dest_dir)
+            self.new_project(dest_dir)
             self.reset_wizard()
             self.close()
         except Exception as e:
             print(f"An error occurred while creating the new project: {e}")
             QMessageBox.critical(self, "Error", f"An error occurred while creating the new project: {e}")
+    def new_project(self, dest_dir):
+        try:
+            if self.tab_widget.count() == 0:
+                self.project_view.folder(dest_dir)
+            else:
+                self.close_all_tabs()
+                self.mobile_view.clear_view()
+                self.project_view.folder( dest_dir)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error creating new project workspace: {e}")
+            logging.error(f"Error creating new project workspace: {e}")
 
-    def reset_wizard(self):
-        self.sample_project_combo.setCurrentIndex(0)
-        self.copy_project_name_input.clear()
-        self.new_project_name_input.clear()
-        self.mobile_view.setHtml("<html><body><p>No content available</p></body></html>")
-
-    def handle_cancel(self):
-    # Reset the wizard fields
-        self.reset_wizard()
-        # Close the wizard
-        self.close()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
