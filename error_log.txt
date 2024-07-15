@@ -1,3 +1,0 @@
-Unexpected error in open_file: 'TerminalWidget' object has no attribute 'append'
-Unexpected error in open_file: 'TerminalWidget' object has no attribute 'append'
-Unexpected error in open_file: 'TerminalWidget' object has no attribute 'append'
