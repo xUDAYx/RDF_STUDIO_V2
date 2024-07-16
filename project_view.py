@@ -84,8 +84,8 @@ def find_linked_files(folder_path, init_file):
                 ui_file_map[ui_file].extend([js_file for js_file in js_files if file_exists_in_folder(os.path.join(folder_path, "RDF_ACTION"), js_file)])
 
                 # Find UI.php files in the UI.php file
-                connected_ui_files = find_files(ui_file_contents, r'''RDFView\.php\?ui=([^'"]+)''')
-                connected_ui_files_2 = find_files(ui_file_contents, r'''RDF_UI\/[^'"]*UI\.php''')
+                connected_ui_files = find_files(ui_file_contents, r'''ui=([^&'"]+)''')
+                connected_ui_files_2 = find_files(ui_file_contents, r'''RDF_UI\/[^'"]*UI''')
                 connected_ui_files.extend(connected_ui_files_2)
 
                 additional_ui_files = [f"{ui_file}.php" for ui_file in connected_ui_files if file_exists_in_folder(os.path.join(folder_path, "RDF_UI"), f"{ui_file}.php")]
