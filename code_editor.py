@@ -5,8 +5,8 @@ import logging,chardet
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 from PyQt6.QtGui import QSyntaxHighlighter
 from PyQt6.Qsci import QsciDocument
-from PyQt6.QtWidgets import QPlainTextEdit, QMainWindow,QLineEdit,QMenu, QVBoxLayout, QWidget, QSplitter, QTreeView, QToolBar, QFileDialog, QToolButton, QTabWidget, QApplication, QMessageBox, QPushButton, QTextEdit, QScrollBar, QHBoxLayout, QSizePolicy
-from PyQt6.QtGui import  QTextCharFormat,QAction, QFileSystemModel, QIcon, QFont, QPainter, QColor, QTextFormat, QTextCursor, QKeySequence, QShortcut
+from PyQt6.QtWidgets import QPlainTextEdit,QLabel, QMainWindow,QLineEdit,QMenu, QVBoxLayout, QWidget, QSplitter, QTreeView, QToolBar, QFileDialog, QToolButton, QTabWidget, QApplication, QMessageBox, QPushButton, QTextEdit, QScrollBar, QHBoxLayout, QSizePolicy
+from PyQt6.QtGui import  QTextCharFormat,QAction, QPixmap, QFileSystemModel, QIcon, QFont, QPainter, QColor, QTextFormat, QTextCursor, QKeySequence, QShortcut
 from PyQt6.QtCore import Qt, QModelIndex, QTimer, QDir, pyqtSlot, QSize, QRect, QProcess, QPoint
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython, QsciLexerHTML, QsciLexerJavaScript, QsciLexerCSS
 
@@ -16,7 +16,7 @@ from project_view import ProjectView
 from new_project import NewProjectWizard
 from theme import DarkTheme
 from PyQt6.Qsci import QsciAbstractAPIs, QsciScintilla, QsciDocument,QsciLexerJSON
-from auto_complete.autocompleter import AutoCompleter
+from autocompleter import AutoCompleter
 from Rule_Engine import RuleEngine
 
 
@@ -273,8 +273,14 @@ class CodeEditor(QMainWindow):
             self.splitter = QSplitter(Qt.Orientation.Horizontal)
             self.splitter.addWidget(self.project_view)
             self.splitter.addWidget(self.tab_widget)
-            self.splitter.addWidget(self.mobile_view)
-            self.main_layout.addWidget(self.splitter)
+            self.splitter.setSizes([500, 900])  # Set initial sizes for the project view and tab widget
+
+            self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+            self.main_splitter.addWidget(self.splitter)
+            self.main_splitter.addWidget(self.mobile_view)
+            self.main_splitter.setSizes([1200, 300])  # Set initial sizes for the main splitter
+
+            self.main_layout.addWidget(self.main_splitter)
 
             self.live_preview_timer = QTimer()
             self.live_preview_timer.setInterval(1000)
@@ -295,6 +301,8 @@ class CodeEditor(QMainWindow):
                 "Action": os.path.join(self.rules_directory, "rules_action.json")
             }
             self.rule_engine = RuleEngine(self.tab_widget, self.rules, self.mobile_view)
+
+            
 
             self.dark_theme_enabled = False
 
@@ -442,9 +450,14 @@ class CodeEditor(QMainWindow):
             search_bar.setPlaceholderText("Search...")
             search_bar.textChanged.connect(lambda text: self.search_text(text))
 
+            publish_button = QPushButton("Publish")
+            publish_button.setStyleSheet("background-color:red;color:white;font-weight:bold")
+            publish_button.clicked.connect(self.publish_code)
+
             search_tab_layout = QHBoxLayout()
             search_tab_layout.addStretch()
             search_tab_layout.addWidget(search_bar)
+            search_tab_layout.addWidget(publish_button)  # Add the publish button to the search tab layout
             layout.addLayout(search_tab_layout)
 
             splitter = QSplitter(Qt.Orientation.Vertical)
@@ -467,7 +480,6 @@ class CodeEditor(QMainWindow):
 
             toggle_button.clicked.connect(lambda: self.toggle_terminal(splitter, toggle_button))
 
-
             try:
                 with open(file_path, 'rb') as file:
                     raw_data = file.read()
@@ -489,32 +501,53 @@ class CodeEditor(QMainWindow):
                     # Set up autocompleter
                     autocompleter = AutoCompleter(lexer)
                     autocompleter.add_custom_apis([
-                            "<table class=\"section\">", "<tr>", "<td>", "</td>", "</tr>", "</table>",
-                            "<td style=\"width: 90%;\">", "getYYY()", "yyyBVO.php",
-                            "RDF_ACTION", "RDF_BW", "RDF_BVO", "RDF_DATA",
-                            "inline", "width", "height", "background-color", "color"
-                        ])
+                        "<table class=\"section\">", "<tr>", "<td>", "</td>", "</tr>", "</table>",
+                        "<td style=\"width: 90%;\">", "getYYY()", "yyyBVO.php",
+                        "RDF_ACTION", "RDF_BW", "RDF_BVO", "RDF_DATA",
+                        "inline", "width", "height", "background-color", "color"
+                    ])
                     autocompleter.prepare()
 
-            # Set up the editor's auto-completion settings
+                # Set up the editor's auto-completion settings
                 editor.setAutoCompletionThreshold(1)  # Show auto-completions after 1 character
                 editor.setAutoCompletionCaseSensitivity(False)  # Make auto-completion case insensitive
                 editor.setAutoCompletionReplaceWord(False)
-                
 
             except Exception as e:
-                if terminal:
-                    terminal.write(f"Error loading file: {e}\n")
-
-                print(f'{e}')
-                QMessageBox.critical(self, "Load File Error", f"An error occurred while loading file: {str(e)}")
-                logging.error(f"Error loading file: {e}")
+                print(f"Failed to open file: {e}")
 
         except Exception as e:
-            print(f"Error opening file in new tab: {e}")
-            logging.error(f"Error opening file in new tab: {e}")
+            print(f"Failed to open new tab: {e}")
 
 
+    def publish_code(self):
+        try:
+            # Create a new window
+            self.publish_window = QWidget()
+            self.publish_window.setWindowTitle("Publish Code")
+            
+            layout = QVBoxLayout()
+            
+            # Construct the dynamic path to the image
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            image_path = os.path.join(current_dir, 'images', 'publish_image.jpg')  # Replace 'publish_image.jpg' with the actual image name
+            
+            # Add an image
+            label = QLabel()
+            pixmap = QPixmap(image_path)
+            label.setPixmap(pixmap)
+            layout.addWidget(label)
+            
+            self.publish_window.setLayout(layout)
+            
+            # Set initial small size
+            self.publish_window.resize(100, 100)  # Initial small size
+            
+            # Adjust the size to fit the image after loading it
+            # self.publish_window.adjustSize()
+            self.publish_window.show()
+        except Exception as e:
+            print(f"{e}")
 
 
     def get_language_from_extension(self, extension):

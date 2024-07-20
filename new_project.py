@@ -1,4 +1,4 @@
-import sys, logging
+import sys
 import os,json
 
 import shutil
@@ -431,11 +431,6 @@ class NewProjectWizard(QWizard):
 
             # Create initial project structure
             os.makedirs(os.path.join(dest_dir, "RDF_UI"))
-            
-            # Create UI file with project name
-            project_name = os.path.basename(dest_dir)
-            ui_file_name = f"{project_name}UI.php"
-            open(os.path.join(dest_dir, "RDF_UI", ui_file_name), 'w').close()            
             os.makedirs(os.path.join(dest_dir, "RDF_ACTION"))
             os.makedirs(os.path.join(dest_dir, "RDF_BW"))
             os.makedirs(os.path.join(dest_dir, "RDF_BVO"))
@@ -443,7 +438,7 @@ class NewProjectWizard(QWizard):
 
             # Create a default ProjectInfo.json file
             project_info = {
-                "init": ui_file_name
+                "init": ""
             }
 
             with open(os.path.join(dest_dir, "ProjectInfo.json"), 'w') as file:
@@ -451,24 +446,12 @@ class NewProjectWizard(QWizard):
 
             self.project_created.emit(dest_dir)
             QMessageBox.information(self, "Success", "New project created successfully.")
-            self.new_project(dest_dir)
+            self.project_view.populate_tables(dest_dir)
             self.reset_wizard()
             self.close()
         except Exception as e:
             print(f"An error occurred while creating the new project: {e}")
             QMessageBox.critical(self, "Error", f"An error occurred while creating the new project: {e}")
-    def new_project(self, dest_dir):
-        try:
-            if self.tab_widget.count() == 0:
-                self.project_view.folder(dest_dir)
-            else:
-                self.close_all_tabs()
-                self.mobile_view.clear_view()
-                self.project_view.folder( dest_dir)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error creating new project workspace: {e}")
-            logging.error(f"Error creating new project workspace: {e}")
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

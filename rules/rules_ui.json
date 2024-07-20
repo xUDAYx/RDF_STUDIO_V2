@@ -27,7 +27,7 @@
         },
         {
           "description": "Table tag should be present",
-          "pattern": "<table.*?>"
+          "pattern": "<table\\s*.*?>"
         },
         {
           "description": "File must contain a table tag with class 'section'",
